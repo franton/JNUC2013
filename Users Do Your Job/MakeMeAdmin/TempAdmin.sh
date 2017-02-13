@@ -1,18 +1,61 @@
 #!/bin/bash
-##############
-# This script will give a user 30 minutes of Admin level access, from Jamf's self 
-# service.
-# At the end of the 30 minutes it will then call a jamf policy with a manual 
-# trigger. 
-# Remove the users admin rights and disable the plist file this creates and 
-# activites.
-# The removal script is removetempAdmin.sh
-##############
 
-USERNAME=`who |grep console| awk '{print $1}'`
+# This script will give a user 30 minutes of Admin level access, from Jamf's self service.
+# At the end of the 30 minutes it will then call a jamf policy with a manual trigger. 
+# Remove the users admin rights and disable the plist file this creates and activities.
+
+# Original script by Andrina Kelly : https://github.com/andrina/JNUC2013/blob/master/Users%20Do%20Your%20Job/MakeMeAdmin/
+# Updated by Richard Purves - 13th February 2017 - richard at richard - purves dot com
+
+# Define variables and logging here
+USERNAME=`python -c 'from SystemConfiguration import SCDynamicStoreCopyConsoleUser; import sys; username = (SCDynamicStoreCopyConsoleUser(None, None, None) or [None])[0]; username = [username,""][username in [u"loginwindow", None, u""]]; sys.stdout.write(username + "\n");'`
+COMPANY="com.yourcompany.adminremove"
+REMOVELD="/Library/LaunchDaemons/$COMPANY.plist"
+TMPLOC="/usr/local/company/misc"
+LOGFOLDER="/private/var/log/folder/"
+LOG=$LOGFOLDER"TempAdminRights.log"
+
+if [ ! -d "$LOGFOLDER" ];
+then
+	mkdir $LOGFOLDER
+fi
+
+function logme()
+{
+# Check to see if function has been called correctly
+	if [ -z "$1" ]
+	then
+		echo $( date "+Date:%d-%m-%Y TIME:%H:%M:%S" )" - logme function call error: no text passed to function! Please recheck code!"
+		echo $( date "+Date:%d-%m-%Y TIME:%H:%M:%S" )" - logme function call error: no text passed to function! Please recheck code!" >> $LOG
+		exit 1
+	fi
+
+# Log the passed details
+	echo -e $( date "+Date:%d-%m-%Y TIME:%H:%M:%S" )" - $1" >> $LOG
+	echo -e $( date "+Date:%d-%m-%Y TIME:%H:%M:%S" )" - $1"
+}
+
+# Identify location of jamf binary. Code curtesy of Rich Trouton. https://derflounder.wordpress.com/2015/09/24/path-environment-variables-and-casper-9-8/#more-7176
+
+jamf_binary=`/usr/bin/which jamf`
+
+ if [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ ! -e "/usr/local/bin/jamf" ]]; then
+    jamf_binary="/usr/sbin/jamf"
+ elif [[ "$jamf_binary" == "" ]] && [[ ! -e "/usr/sbin/jamf" ]] && [[ -e "/usr/local/bin/jamf" ]]; then
+    jamf_binary="/usr/local/bin/jamf"
+ elif [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ -e "/usr/local/bin/jamf" ]]; then
+    jamf_binary="/usr/local/bin/jamf"
+ fi
+}
+
+# Check and start logging
+logme "Temporary Admin Rights"
+logme "Current user: $USERNAME"
+logme "jamf binary location: $jamf_binary"
 
 # Place launchd plist to call JSS policy to remove admin rights.
-#####
+
+logme "Creating admin right removal LaunchDaemon"
 echo "<?xml version="1.0" encoding="UTF-8"?> 
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"> 
 <plist version="1.0"> 
@@ -23,32 +66,31 @@ echo "<?xml version="1.0" encoding="UTF-8"?>
 	<string>com.yourcompany.adminremove</string> 
 	<key>ProgramArguments</key> 
 	<array> 
-		<string>/usr/sbin/jamf</string>
+		<string>$jamf_binary</string>
 		<string>policy</string>
-		<string>-trigger</string>
+		<string>-event</string>
 		<string>adminremove</string>
 	</array>
 	<key>StartInterval</key>
 	<integer>1800</integer> 
 </dict> 
-</plist>" > /Library/LaunchDaemons/com.yourcompany.adminremove.plist
-#####
+</plist>" > $REMOVELD
 
-#set the permission on the file just made.
-chown root:wheel /Library/LaunchDaemons/com.yourcompany.adminremove.plist
-chmod 644 /Library/LaunchDaemons/com.yourcompany.adminremove.plist
-defaults write /Library/LaunchDaemons/com.yourcompany.adminremove.plist disabled -bool false
+# Set the permission on the file just made.
+logme "Setting correct permissions on LaunchDaemon"
+chown root:wheel $REMOVELD 2>&1 | tee -a ${LOG}
+chmod 644 $REMOVELD 2>&1 | tee -a ${LOG}
+defaults write $REMOVELD disabled -bool false 2>&1 | tee -a ${LOG}
 
 # load the removal plist timer. 
-launchctl load -w /Library/LaunchDaemons/com.yourcompany.adminremove.plist
+logme "Enabling the removal LaunchDaemon"
+launchctl load -w $REMOVELD 2>&1 | tee -a ${LOG}
 
-# build log files in var/uits
-mkdir /var/uits
-TIME=`date "+Date:%m-%d-%Y TIME:%H:%M:%S"`
-echo $TIME " by " $USERNAME >> /var/uits/30minAdmin.txt
-
-echo $USERNAME >> /var/uits/userToRemove
+# build log files in the logging location
+logme "Username for admin rights logged"
+echo $USERNAME >> "$TMPLOC"/userToRemove
 
 # give current logged user admin rights
-/usr/sbin/dseditgroup -o edit -a $USERNAME -t user admin
+logme "$USERNAME granted temporary admin rights"
+/usr/sbin/dseditgroup -o edit -a $USERNAME -t user admin 2>&1 | tee -a ${LOG}
 exit 0
