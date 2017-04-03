@@ -12,12 +12,17 @@ USERNAME=`python -c 'from SystemConfiguration import SCDynamicStoreCopyConsoleUs
 COMPANY="com.yourcompany.adminremove"
 REMOVELD="/Library/LaunchDaemons/$COMPANY.plist"
 TMPLOC="/usr/local/company/misc"
-LOGFOLDER="/private/var/log/folder/"
+LOGFOLDER="/private/var/log/folder"
 LOG=$LOGFOLDER"TempAdminRights.log"
 
 if [ ! -d "$LOGFOLDER" ];
 then
 	mkdir $LOGFOLDER
+fi
+
+if [ ! -d "$TMPLOC" ];
+then
+	mkdir -p $TMPLOC
 fi
 
 function logme()
@@ -46,7 +51,7 @@ jamf_binary=`/usr/bin/which jamf`
  elif [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ -e "/usr/local/bin/jamf" ]]; then
     jamf_binary="/usr/local/bin/jamf"
  fi
-}
+
 
 # Check and start logging
 logme "Temporary Admin Rights"
@@ -93,4 +98,31 @@ echo $USERNAME >> "$TMPLOC"/userToRemove
 # give current logged user admin rights
 logme "$USERNAME granted temporary admin rights"
 /usr/sbin/dseditgroup -o edit -a $USERNAME -t user admin 2>&1 | tee -a ${LOG}
+
+#Function that generates dialog for capturing a reason for MMA rights
+adminPrompt(){
+    # $1 = window title
+    # $2 = prompt text
+    # $3 = default answer
+    LOGO_ICNS="$(osascript -e 'tell application "System Events" to return POSIX file "'"$LOGO_ICNS"'" as text')"
+    osascript <<EOD
+        tell application "System Events"
+            with timeout of 8947848 seconds
+                text returned of (display dialog "$2" default answer "$3" buttons {"OK"} default button 1 with title "$1")
+            end timeout
+        end tell
+EOD
+}
+
+#Call the function and set the result as the variable
+mmaReason="$(adminPrompt 'Make me an Admin' 'Please enter the reason why you need Admin access today' 'Reason')"
+
+function post_reason () {
+  MESSAGE="$1"
+  URL=https://incoming.webhook.url.com
+ 
+  curl -X POST --data "{\"text\": \"${MESSAGE}\", \"username\": \"${USERNAME}\"}" ${URL}
+}
+
+post_reason "$mmaReason"
 exit 0
