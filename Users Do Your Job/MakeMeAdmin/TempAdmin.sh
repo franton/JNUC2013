@@ -15,6 +15,7 @@ REMOVELD="/Library/LaunchDaemons/$COMPANY.plist"
 TMPLOC="/usr/local/company/misc"
 LOGFOLDER="/private/var/log/folder"
 LOG=$LOGFOLDER"TempAdminRights.log"
+LOGO_ICNS="/path/to/icon.icns"
 
 if [ ! -d "$LOGFOLDER" ];
 then
@@ -109,7 +110,7 @@ adminPrompt(){
     osascript <<EOD
         tell application "System Events"
             with timeout of 8947848 seconds
-                text returned of (display dialog "$2" default answer "$3" buttons {"OK"} default button 1 with title "$1")
+                text returned of (display dialog "$2" default answer "$3" buttons {"OK"} default button 1 with title "$1" with icon file "$LOGO_ICNS")
             end timeout
         end tell
 EOD
