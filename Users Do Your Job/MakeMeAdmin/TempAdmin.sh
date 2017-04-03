@@ -6,6 +6,7 @@
 
 # Original script by Andrina Kelly : https://github.com/andrina/JNUC2013/blob/master/Users%20Do%20Your%20Job/MakeMeAdmin/
 # Updated by Richard Purves - 13th February 2017 - richard at richard - purves dot com
+# Incorporated webhook commit by James Smith - 3rd April 2017.
 
 # Define variables and logging here
 USERNAME=`python -c 'from SystemConfiguration import SCDynamicStoreCopyConsoleUser; import sys; username = (SCDynamicStoreCopyConsoleUser(None, None, None) or [None])[0]; username = [username,""][username in [u"loginwindow", None, u""]]; sys.stdout.write(username + "\n");'`
